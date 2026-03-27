@@ -529,6 +529,126 @@ async fn update_open_release(
     app_handle.shell().open(&url, None).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn update_download_install(
+    app_handle: AppHandle,
+    version: String,
+) -> Result<(), String> {
+    use futures::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
+    let client = reqwest::Client::builder()
+        .user_agent("QDM/1.0.3")
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let tag = format!("v{}", version.trim_start_matches('v'));
+    let resp = client
+        .get(format!("https://api.github.com/repos/PBhadoo/QDM/releases/tags/{}", tag))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    let assets = json["assets"].as_array()
+        .ok_or_else(|| "No assets found in release".to_string())?;
+
+    let asset = assets.iter().find(|a| {
+        let name = a["name"].as_str().unwrap_or("");
+        if cfg!(windows) {
+            name.ends_with("-setup.exe")
+        } else if cfg!(target_os = "macos") {
+            name.ends_with(".dmg")
+        } else {
+            name.ends_with(".AppImage")
+        }
+    }).ok_or_else(|| "No installer asset found for this platform in the release".to_string())?;
+
+    let download_url = asset["browser_download_url"].as_str()
+        .ok_or_else(|| "Missing download URL".to_string())?
+        .to_string();
+    let file_name = asset["name"].as_str().unwrap_or("qdm_update");
+    let temp_dest = std::env::temp_dir().join(file_name);
+
+    let dl_client = reqwest::Client::builder()
+        .user_agent("QDM/1.0.3")
+        .timeout(std::time::Duration::from_secs(600))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = dl_client.get(&download_url).send().await
+        .map_err(|e| format!("Download failed: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {} downloading update", resp.status()));
+    }
+
+    let total = resp.content_length().unwrap_or(0);
+    let mut downloaded = 0u64;
+    let mut stream = resp.bytes_stream();
+    let mut file = tokio::fs::File::create(&temp_dest).await
+        .map_err(|e| format!("Cannot create temp file: {}", e))?;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| e.to_string())?;
+        file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+        downloaded += chunk.len() as u64;
+        if total > 0 {
+            let pct = (downloaded * 100 / total) as u32;
+            let mb = downloaded as f64 / 1_048_576.0;
+            let total_mb = total as f64 / 1_048_576.0;
+            app_handle.emit("update:progress", serde_json::json!({
+                "pct": pct,
+                "msg": format!("{:.1} / {:.1} MB", mb, total_mb),
+                "done": false,
+            })).ok();
+        }
+    }
+    file.flush().await.ok();
+    drop(file);
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new(&temp_dest)
+            .creation_flags(0x00000008) // DETACHED_PROCESS
+            .spawn()
+            .map_err(|e| format!("Failed to launch installer: {}", e))?;
+        app_handle.emit("update:installing", ()).ok();
+        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+        app_handle.exit(0);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&temp_dest)
+            .spawn()
+            .map_err(|e| format!("Failed to open DMG: {}", e))?;
+        app_handle.emit("update:progress", serde_json::json!({
+            "pct": 100,
+            "msg": "DMG opened — drag Quantum Download Manager to Applications to finish",
+            "done": true,
+        })).ok();
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&temp_dest, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("chmod failed: {}", e))?;
+        let folder = temp_dest.parent().unwrap_or(std::path::Path::new("/tmp"));
+        let _ = std::process::Command::new("xdg-open").arg(folder).spawn();
+        app_handle.emit("update:progress", serde_json::json!({
+            "pct": 100,
+            "msg": format!("AppImage saved — run it from {}", temp_dest.display()),
+            "done": true,
+        })).ok();
+    }
+
+    Ok(())
+}
+
 // ── yt-dlp management commands ─────────────────────────────────────────────────
 
 #[tauri::command]
@@ -1019,6 +1139,7 @@ pub fn run() {
             update_check,
             update_get_version,
             update_open_release,
+            update_download_install,
             download_provide_auth,
             download_reopen_source,
             ytdlp_list_formats,

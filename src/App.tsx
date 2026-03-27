@@ -31,7 +31,10 @@ export default function App() {
     qualityRequest, setQualityRequest,
   } = useDownloadStore()
 
-  const [updateBanner, setUpdateBanner] = useState<{ version: string; url: string } | null>(null)
+  const [updateBanner, setUpdateBanner] = useState<{ version: string } | null>(null)
+  const [installState, setInstallState] = useState<'idle' | 'downloading' | 'installing' | 'done'>('idle')
+  const [installPct, setInstallPct] = useState(0)
+  const [installMsg, setInstallMsg] = useState('')
   const [toolsProgress, setToolsProgress] = useState<{ tool: string; step: string; pct: number; msg: string } | null>(null)
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export default function App() {
     // Check for QDM app updates silently on startup
     invoke<any>('update_check').then((result) => {
       if (result?.updateAvailable) {
-        setUpdateBanner({ version: result.latestVersion, url: result.releaseUrl })
+        setUpdateBanner({ version: result.latestVersion })
       }
     }).catch(() => {})
 
@@ -111,23 +114,56 @@ export default function App() {
       {/* QDM update banner */}
       {updateBanner && (
         <div className="flex items-center justify-between px-4 py-1.5 bg-qdm-accent/15 border-b border-qdm-accent/30 text-xs">
-          <span className="text-qdm-text">
-            QDM <span className="font-semibold text-qdm-accent">v{updateBanner.version}</span> is available
-          </span>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => invoke('update_open_release', { version: updateBanner.version }).catch(() => {})}
-              className="text-qdm-accent font-semibold hover:underline"
-            >
-              Download update
-            </button>
-            <button
-              onClick={() => setUpdateBanner(null)}
-              className="text-qdm-textMuted hover:text-qdm-text"
-            >
-              ✕
-            </button>
-          </div>
+          {installState === 'idle' && (
+            <>
+              <span className="text-qdm-text">
+                QDM <span className="font-semibold text-qdm-accent">v{updateBanner.version}</span> is available
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    setInstallState('downloading')
+                    setInstallPct(0)
+                    setInstallMsg('Starting download…')
+                    const unlisten1 = await listen<any>('update:progress', (e) => {
+                      setInstallPct(e.payload.pct)
+                      setInstallMsg(e.payload.msg)
+                      if (e.payload.done) setInstallState('done')
+                    })
+                    await listen('update:installing', () => setInstallState('installing'))
+                    invoke('update_download_install', { version: updateBanner.version })
+                      .catch((err: any) => {
+                        setInstallMsg(err?.toString() || 'Failed')
+                        setInstallState('idle')
+                        unlisten1()
+                      })
+                  }}
+                  className="text-qdm-accent font-semibold hover:underline"
+                >
+                  Install now
+                </button>
+                <button onClick={() => setUpdateBanner(null)} className="text-qdm-textMuted hover:text-qdm-text">✕</button>
+              </div>
+            </>
+          )}
+          {installState === 'downloading' && (
+            <div className="flex items-center gap-3 w-full">
+              <span className="text-qdm-textSecondary shrink-0">Downloading v{updateBanner.version}…</span>
+              <div className="flex-1 h-1.5 bg-qdm-border rounded-full overflow-hidden">
+                <div className="h-full bg-qdm-accent rounded-full transition-all duration-200" style={{ width: `${installPct}%` }} />
+              </div>
+              <span className="font-mono text-qdm-textMuted shrink-0">{installPct}%</span>
+            </div>
+          )}
+          {installState === 'installing' && (
+            <span className="text-qdm-accent font-semibold">Installing… app will restart shortly</span>
+          )}
+          {installState === 'done' && (
+            <div className="flex items-center justify-between w-full">
+              <span className="text-green-400 font-semibold">✓ {installMsg}</span>
+              <button onClick={() => setUpdateBanner(null)} className="text-qdm-textMuted hover:text-qdm-text">✕</button>
+            </div>
+          )}
         </div>
       )}
 

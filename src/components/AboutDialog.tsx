@@ -1,13 +1,62 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { getVersion } from '@tauri-apps/api/app'
-import { X, Zap, Github, Heart, ExternalLink } from 'lucide-react'
+import { X, Zap, Github, Heart, ExternalLink, RefreshCw, Download, CheckCircle } from 'lucide-react'
 import { useDownloadStore } from '../store/useDownloadStore'
+
+type UpdateState = 'idle' | 'checking' | 'upToDate' | 'available' | 'downloading' | 'installing' | 'done'
 
 export function AboutDialog() {
   const { setShowAbout } = useDownloadStore()
   const [version, setVersion] = useState('...')
-  useEffect(() => { getVersion().then(setVersion).catch(() => setVersion('1.2.0')) }, [])
+  const [updateState, setUpdateState] = useState<UpdateState>('idle')
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; notes: string } | null>(null)
+  const [downloadPct, setDownloadPct] = useState(0)
+  const [downloadMsg, setDownloadMsg] = useState('')
+  const unlistenRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => setVersion('1.0.3'))
+    return () => { unlistenRef.current?.() }
+  }, [])
+
+  const checkForUpdates = async () => {
+    setUpdateState('checking')
+    try {
+      const result = await invoke<any>('update_check')
+      if (result?.updateAvailable) {
+        setUpdateInfo({ version: result.latestVersion, notes: result.releaseNotes || '' })
+        setUpdateState('available')
+      } else {
+        setUpdateState('upToDate')
+      }
+    } catch {
+      setUpdateState('idle')
+    }
+  }
+
+  const installUpdate = async () => {
+    if (!updateInfo) return
+    setUpdateState('downloading')
+    setDownloadPct(0)
+    setDownloadMsg('Starting download…')
+
+    unlistenRef.current?.()
+    unlistenRef.current = await listen<any>('update:progress', (e) => {
+      setDownloadPct(e.payload.pct)
+      setDownloadMsg(e.payload.msg)
+      if (e.payload.done) setUpdateState('done')
+    })
+    await listen('update:installing', () => setUpdateState('installing'))
+
+    try {
+      await invoke('update_download_install', { version: updateInfo.version })
+    } catch (err: any) {
+      setDownloadMsg(err?.toString() || 'Download failed')
+      setUpdateState('available')
+    }
+  }
 
   const openLink = (url: string) => {
     invoke('shell_open_external', { url })
@@ -99,6 +148,77 @@ export function AboutDialog() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Update checker */}
+          <div className="bg-qdm-bg/50 rounded-xl px-4 py-3 mb-5">
+            {updateState === 'idle' && (
+              <button
+                onClick={checkForUpdates}
+                className="flex items-center gap-2 text-xs text-qdm-textSecondary hover:text-qdm-text transition-colors mx-auto"
+              >
+                <RefreshCw size={13} />
+                Check for Updates
+              </button>
+            )}
+            {updateState === 'checking' && (
+              <div className="flex items-center gap-2 justify-center text-xs text-qdm-textSecondary">
+                <RefreshCw size={13} className="animate-spin" />
+                Checking for updates…
+              </div>
+            )}
+            {updateState === 'upToDate' && (
+              <div className="flex items-center gap-2 justify-center text-xs text-green-400">
+                <CheckCircle size={13} />
+                You're up to date (v{version})
+              </div>
+            )}
+            {updateState === 'available' && updateInfo && (
+              <div className="text-center">
+                <p className="text-xs text-qdm-accent font-semibold mb-2">
+                  v{updateInfo.version} is available
+                </p>
+                {downloadMsg && (
+                  <p className="text-[11px] text-red-400 mb-2">{downloadMsg}</p>
+                )}
+                <button
+                  onClick={installUpdate}
+                  className="btn-primary flex items-center gap-2 mx-auto text-xs"
+                >
+                  <Download size={13} />
+                  Install v{updateInfo.version}
+                </button>
+              </div>
+            )}
+            {updateState === 'downloading' && (
+              <div>
+                <div className="flex items-center justify-between text-xs text-qdm-textSecondary mb-1.5">
+                  <span>Downloading update…</span>
+                  <span className="font-mono">{downloadPct}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-qdm-border rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-qdm-accent rounded-full transition-all duration-200"
+                    style={{ width: `${downloadPct}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-qdm-textMuted mt-1">{downloadMsg}</p>
+              </div>
+            )}
+            {updateState === 'installing' && (
+              <div className="flex items-center gap-2 justify-center text-xs text-qdm-accent">
+                <RefreshCw size={13} className="animate-spin" />
+                Installing… app will restart
+              </div>
+            )}
+            {updateState === 'done' && (
+              <div className="text-center">
+                <p className="text-xs text-green-400 font-semibold mb-0.5 flex items-center gap-1 justify-center">
+                  <CheckCircle size={13} /> Download complete
+                </p>
+                <p className="text-[11px] text-qdm-textMuted">{downloadMsg}</p>
+              </div>
+            )}
           </div>
 
           {/* Links */}
