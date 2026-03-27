@@ -1,11 +1,25 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Link, FolderOpen, Zap, ChevronDown, ChevronUp, Loader2, FileDown, HardDrive } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { X, Link, FolderOpen, Zap, ChevronDown, ChevronUp, Loader2, FileDown, HardDrive, Shield, Music, Video } from 'lucide-react'
 import { useDownloadStore } from '../store/useDownloadStore'
 import { formatBytes } from '../utils/format'
 
-const isElectron = typeof window !== 'undefined' && window.qdmAPI !== undefined
+const YTDLP_QUALITY_OPTIONS = [
+  { value: 'best',  label: 'Best Quality',  hint: 'Highest available (needs ffmpeg for HD)' },
+  { value: '1080p', label: '1080p HD',       hint: 'Full HD — needs ffmpeg' },
+  { value: '720p',  label: '720p HD',        hint: 'HD — needs ffmpeg' },
+  { value: '480p',  label: '480p SD',        hint: 'Standard definition' },
+  { value: '360p',  label: '360p',           hint: 'Low quality, no ffmpeg needed' },
+  { value: 'audio', label: 'Audio Only',     hint: 'MP3 / M4A audio track' },
+]
 
-// Simple debounce
+function isYtDlpUrl(url: string): boolean {
+  const l = url.toLowerCase()
+  return l.includes('youtube.com/watch') || l.includes('youtu.be/') ||
+    l.includes('youtube.com/shorts/') || l.includes('youtube.com/live/') ||
+    l.includes('music.youtube.com/watch') || l.includes('youtube.com/embed/')
+}
+
 function useDebounce(value: string, delay: number): string {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
@@ -19,27 +33,29 @@ interface FileInfo {
   fileName: string
   fileSize: number
   resumable: boolean
+  finalUrl?: string
 }
 
 export function NewDownloadDialog() {
   const { setShowNewDownload, config } = useDownloadStore()
   const [url, setUrl] = useState('')
   const [fileName, setFileName] = useState('')
-  const [fileNameManual, setFileNameManual] = useState(false) // true if user manually edited
+  const [fileNameManual, setFileNameManual] = useState(false)
   const [savePath, setSavePath] = useState(config?.downloadDir || '')
   const [maxSegments, setMaxSegments] = useState(config?.maxSegmentsPerDownload || 8)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [ytQuality, setYtQuality] = useState('best')
   const [isFetching, setIsFetching] = useState(false)
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null)
   const [fetchError, setFetchError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const fetchController = useRef<AbortController | null>(null)
+  const probeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const debouncedUrl = useDebounce(url, 800)
+  const debouncedUrl = useDebounce(url, 700)
 
   useEffect(() => {
     inputRef.current?.focus()
-    // Try to read clipboard for URL
+    // Pre-fill from clipboard
     navigator.clipboard?.readText().then(text => {
       if (text && (text.startsWith('http://') || text.startsWith('https://') || text.startsWith('ftp://'))) {
         setUrl(text)
@@ -47,15 +63,13 @@ export function NewDownloadDialog() {
     }).catch(() => {})
   }, [])
 
-  // Auto-fetch file info when URL changes
   useEffect(() => {
     if (!debouncedUrl || !isValidUrl(debouncedUrl)) {
       setFileInfo(null)
       setFetchError('')
       return
     }
-
-    fetchFileInfo(debouncedUrl)
+    probeFileInfo(debouncedUrl)
   }, [debouncedUrl])
 
   function isValidUrl(str: string): boolean {
@@ -67,85 +81,34 @@ export function NewDownloadDialog() {
     }
   }
 
-  async function fetchFileInfo(targetUrl: string) {
-    // Cancel any existing fetch
-    if (fetchController.current) {
-      fetchController.current.abort()
-    }
-
+  async function probeFileInfo(targetUrl: string) {
     setIsFetching(true)
     setFetchError('')
-    fetchController.current = new AbortController()
+
+    // Immediately show filename from URL as quick feedback
+    const urlName = extractFileNameFromUrl(targetUrl)
+    if (!fileNameManual && urlName) setFileName(urlName)
 
     try {
-      // Use a HEAD request via the main process if in Electron
-      // For web mode, we can't make HEAD requests due to CORS, so fake it
-      if (isElectron) {
-        // We'll probe via the download engine by adding with autoStart=false
-        // But for now, just extract from URL
-      }
-
-      // Extract filename from URL as immediate feedback
-      const urlName = extractFileNameFromUrl(targetUrl)
-      if (!fileNameManual && urlName) {
-        setFileName(urlName)
-      }
-
-      // Try a HEAD request (will work for same-origin or CORS-enabled URLs)
-      const controller = fetchController.current
-      const response = await fetch(targetUrl, {
-        method: 'HEAD',
-        signal: controller.signal,
-        mode: 'no-cors', // This won't give us headers, but won't error
-      }).catch(() => null)
-
-      if (controller.signal.aborted) return
-
-      // In no-cors mode we can't read headers, so for web dev mode use URL info
-      // In Electron, the download engine's probeUrl handles this properly
-      const info: FileInfo = {
-        fileName: urlName || 'download',
-        fileSize: -1,
-        resumable: false,
-      }
-
-      // Try to read Content-Length and Content-Disposition if available
-      if (response && response.headers) {
-        const contentLength = response.headers.get('content-length')
-        if (contentLength) {
-          info.fileSize = parseInt(contentLength, 10)
+      const result = await invoke<any>('download_probe', { url: targetUrl })
+      if (result.error) {
+        // Probe failed — still show URL-extracted filename
+        setFileInfo({ fileName: urlName || 'download', fileSize: -1, resumable: false })
+        setFetchError('Could not fetch file info — download will still work')
+      } else {
+        const info: FileInfo = {
+          fileName: result.fileName || urlName || 'download',
+          fileSize: result.fileSize,
+          resumable: result.resumable,
+          finalUrl: result.finalUrl,
         }
-
-        const contentDisposition = response.headers.get('content-disposition')
-        if (contentDisposition) {
-          const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
-          if (match) {
-            info.fileName = match[1].replace(/['"]/g, '').trim()
-          }
-        }
-
-        const acceptRanges = response.headers.get('accept-ranges')
-        info.resumable = acceptRanges === 'bytes'
+        if (!fileNameManual && info.fileName) setFileName(info.fileName)
+        setFileInfo(info)
       }
-
-      if (!fileNameManual) {
-        setFileName(info.fileName)
-      }
-      setFileInfo(info)
-      setFetchError('')
     } catch (err: any) {
-      if (err?.name === 'AbortError') return
-      // Not a real error for the user — just means we couldn't probe
-      // The download engine will handle it properly when starting
-      const urlName = extractFileNameFromUrl(targetUrl)
-      if (!fileNameManual && urlName) {
-        setFileName(urlName)
-      }
-      setFileInfo({
-        fileName: urlName || 'download',
-        fileSize: -1,
-        resumable: false,
-      })
+      const urlName2 = extractFileNameFromUrl(targetUrl)
+      if (!fileNameManual && urlName2) setFileName(urlName2)
+      setFileInfo({ fileName: urlName2 || 'download', fileSize: -1, resumable: false })
     } finally {
       setIsFetching(false)
     }
@@ -159,9 +122,8 @@ export function NewDownloadDialog() {
       const name = pathname.split('/').pop() || ''
       const decoded = decodeURIComponent(name)
       if (decoded && decoded.includes('.')) return decoded
-      // Check query params
-      const fileParam = urlObj.searchParams.get('filename') || 
-                         urlObj.searchParams.get('file') || 
+      const fileParam = urlObj.searchParams.get('filename') ||
+                         urlObj.searchParams.get('file') ||
                          urlObj.searchParams.get('name')
       if (fileParam) return decodeURIComponent(fileParam)
       return decoded || ''
@@ -171,70 +133,40 @@ export function NewDownloadDialog() {
   }
 
   const handleSelectFolder = async () => {
-    if (!isElectron) return
-    const folder = await window.qdmAPI.dialog.selectFolder()
+    const folder = await invoke<string | null>('dialog_select_folder')
     if (folder) setSavePath(folder)
-  }
-
-  const handleFileNameChange = (value: string) => {
-    setFileName(value)
-    setFileNameManual(value.length > 0)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!url.trim()) return
-
-    // Close dialog IMMEDIATELY — don't wait for download to start
     setShowNewDownload(false)
 
+    const isYt = isYtDlpUrl(url.trim())
     try {
-      if (isElectron) {
-        await window.qdmAPI.download.add({
-          url: url.trim(),
+      await invoke('download_add', {
+        request: {
+          url: fileInfo?.finalUrl || url.trim(),
           fileName: fileName.trim() || undefined,
           savePath: savePath || undefined,
           maxSegments,
           autoStart: true,
-        })
-      } else {
-        // Mock for web dev mode
-        const { addDownload } = useDownloadStore.getState()
-        addDownload({
-          id: Date.now().toString(),
-          url: url.trim(),
-          fileName: fileName.trim() || extractFileNameFromUrl(url) || 'download',
-          fileSize: fileInfo?.fileSize || -1,
-          downloaded: 0,
-          progress: 0,
-          speed: 0,
-          eta: 0,
-          status: 'downloading',
-          category: 'other',
-          dateAdded: new Date().toISOString(),
-          savePath: savePath || 'C:\\Users\\User\\Downloads',
-          resumable: fileInfo?.resumable || false,
-          segments: [],
-          maxSegments,
-        })
-      }
+          ytdlpQuality: isYt ? ytQuality : undefined,
+        }
+      })
     } catch (err) {
       console.error('Failed to add download:', err)
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') setShowNewDownload(false)
-  }
-
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in"
       onClick={() => setShowNewDownload(false)}
-      onKeyDown={handleKeyDown}
+      onKeyDown={(e) => e.key === 'Escape' && setShowNewDownload(false)}
     >
-      <div 
-        className="bg-qdm-surface border border-qdm-border rounded-xl w-[540px] shadow-2xl animate-slide-up"
+      <div
+        className="bg-qdm-surface border border-qdm-border rounded-xl w-[560px] shadow-2xl animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -253,9 +185,8 @@ export function NewDownloadDialog() {
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* URL */}
+          {/* URL input */}
           <div>
             <label className="block text-xs font-medium text-qdm-textSecondary mb-1.5">
               Download URL
@@ -277,22 +208,28 @@ export function NewDownloadDialog() {
             </div>
           </div>
 
-          {/* File Info Bar — shows when we have info */}
+          {/* File info bar */}
           {fileInfo && url && (
-            <div className="flex items-center gap-3 p-2.5 bg-qdm-bg/80 rounded-lg border border-qdm-border/50 animate-fade-in">
+            <div className="flex items-center gap-3 p-3 bg-qdm-bg/80 rounded-lg border border-qdm-border/50 animate-fade-in">
               <FileDown size={16} className="text-qdm-accent shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-qdm-text truncate">{fileInfo.fileName || 'Unknown'}</div>
+                <div className="text-xs text-qdm-text truncate font-medium">
+                  {fileInfo.fileName || 'Unknown file'}
+                </div>
+                {fetchError && (
+                  <div className="text-[10px] text-qdm-warning mt-0.5">{fetchError}</div>
+                )}
               </div>
-              <div className="flex items-center gap-2 text-[10px] text-qdm-textMuted shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 {fileInfo.fileSize > 0 && (
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 text-[10px] text-qdm-textMuted">
                     <HardDrive size={10} />
                     {formatBytes(fileInfo.fileSize)}
                   </span>
                 )}
                 {fileInfo.resumable && (
-                  <span className="px-1.5 py-0.5 bg-qdm-success/15 text-qdm-success rounded text-[9px]">
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 bg-qdm-success/15 text-qdm-success rounded text-[9px] font-semibold">
+                    <Shield size={8} />
                     Resumable
                   </span>
                 )}
@@ -300,25 +237,52 @@ export function NewDownloadDialog() {
             </div>
           )}
 
-          {fetchError && (
-            <p className="text-[11px] text-qdm-warning">{fetchError}</p>
+          {/* Quality selector — only for yt-dlp URLs */}
+          {isYtDlpUrl(url) && (
+            <div className="animate-fade-in">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-qdm-textSecondary mb-1.5">
+                <Video size={12} className="text-qdm-accent" />
+                Quality
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {YTDLP_QUALITY_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setYtQuality(opt.value)}
+                    className={`px-2 py-2 rounded-lg border text-[11px] font-medium text-left transition-all ${
+                      ytQuality === opt.value
+                        ? 'bg-qdm-accent/20 border-qdm-accent text-qdm-accent'
+                        : 'bg-qdm-bg/60 border-qdm-border text-qdm-textSecondary hover:border-qdm-accent/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      {opt.value === 'audio' ? <Music size={10} /> : <Video size={10} />}
+                      {opt.label}
+                    </div>
+                    <div className="text-[9px] text-qdm-textMuted mt-0.5 font-normal">{opt.hint}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
-          {/* File Name */}
+          {/* File name */}
           <div>
             <label className="block text-xs font-medium text-qdm-textSecondary mb-1.5">
-              File Name <span className="text-qdm-textMuted">(auto-detected from URL)</span>
+              File Name
+              <span className="text-qdm-textMuted font-normal ml-1">(auto-detected)</span>
             </label>
             <input
               type="text"
               value={fileName}
-              onChange={(e) => handleFileNameChange(e.target.value)}
+              onChange={(e) => { setFileName(e.target.value); setFileNameManual(true) }}
               placeholder="Auto-detect from URL"
               className="input-qdm"
             />
           </div>
 
-          {/* Save Path */}
+          {/* Save path */}
           <div>
             <label className="block text-xs font-medium text-qdm-textSecondary mb-1.5">
               Save To
@@ -342,7 +306,7 @@ export function NewDownloadDialog() {
             </div>
           </div>
 
-          {/* Advanced Options */}
+          {/* Advanced */}
           <div>
             <button
               type="button"
@@ -352,36 +316,33 @@ export function NewDownloadDialog() {
               {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               Advanced Options
             </button>
-            
+
             {showAdvanced && (
-              <div className="mt-3 space-y-3 animate-slide-down">
+              <div className="mt-3 p-3 bg-qdm-bg/60 rounded-lg border border-qdm-border/50 space-y-3 animate-slide-down">
                 <div>
-                  <label className="block text-xs font-medium text-qdm-textSecondary mb-1.5">
-                    Max Segments (Connections)
+                  <label className="block text-xs font-medium text-qdm-textSecondary mb-2">
+                    Connections (Segments): <span className="text-qdm-accent font-mono">{maxSegments}</span>
                   </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min="1"
-                      max="32"
-                      value={maxSegments}
-                      onChange={(e) => setMaxSegments(parseInt(e.target.value))}
-                      className="flex-1 accent-qdm-accent"
-                    />
-                    <span className="text-sm font-mono text-qdm-accent w-8 text-center">
-                      {maxSegments}
-                    </span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="32"
+                    value={maxSegments}
+                    onChange={(e) => setMaxSegments(parseInt(e.target.value))}
+                    className="w-full accent-qdm-accent"
+                  />
+                  <div className="flex justify-between text-[9px] text-qdm-textMuted mt-1">
+                    <span>1 (safe)</span>
+                    <span>8 (recommended)</span>
+                    <span>32 (max)</span>
                   </div>
-                  <p className="text-[10px] text-qdm-textMuted mt-1">
-                    More segments = faster download (if server supports it)
-                  </p>
                 </div>
               </div>
             )}
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-1">
             <button
               type="button"
               onClick={() => setShowNewDownload(false)}
@@ -392,7 +353,7 @@ export function NewDownloadDialog() {
             <button
               type="submit"
               disabled={!url.trim() || !isValidUrl(url.trim())}
-              className="btn-primary flex items-center gap-2 disabled:opacity-50"
+              className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Zap size={14} />
               Download Now

@@ -5,8 +5,11 @@ node_modules/
 dist/
 dist-electron/
 release/
+src-tauri/target/
+src-tauri/gen/
 
 # IDE
+.claude/
 .vscode/
 .idea/
 *.swp
@@ -27,3 +30,7 @@ npm-debug.log*
 
 # QDM data
 .qdm_data/
+
+# Bundled binaries (large, fetched by scripts/fetch-yt-dlp.js at build time)
+src-tauri/resources/yt-dlp.exe
+src-tauri/resources/yt-dlp

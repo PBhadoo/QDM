@@ -4,62 +4,193 @@
   <meta charset="UTF-8">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { width: 360px; font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f13; color: #e2e2e8; }
-    .header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #2a2a3a; }
-    .header .logo { width: 24px; height: 24px; background: linear-gradient(135deg, #6c5ce7, #a855f7); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-    .header h1 { font-size: 13px; font-weight: 600; flex: 1; }
-    .header .version { font-size: 10px; color: #55556a; font-family: monospace; }
-    .status { display: flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 11px; border-bottom: 1px solid #2a2a3a; }
-    .status .dot { width: 8px; height: 8px; border-radius: 50%; }
-    .status .dot.on { background: #00b894; box-shadow: 0 0 6px #00b894; }
-    .status .dot.off { background: #e17055; box-shadow: 0 0 6px #e17055; }
-    .section { padding: 12px 16px; }
-    .section-title { font-size: 10px; color: #55556a; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 600; }
-    .video-list { max-height: 280px; overflow-y: auto; }
-    .video-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px; background: #1a1a24; border-radius: 8px; margin-bottom: 6px; transition: background 0.15s; border: 1px solid transparent; }
+    body { width: 380px; font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f13; color: #e2e2e8; }
+
+    .header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 14px 10px; border-bottom: 1px solid #2a2a3a;
+    }
+    .logo {
+      width: 26px; height: 26px;
+      background: linear-gradient(135deg, #6c5ce7, #a855f7);
+      border-radius: 7px; display: flex; align-items: center;
+      justify-content: center; font-size: 13px; flex-shrink: 0;
+    }
+    .header-title { flex: 1; }
+    .header-title h1 { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; }
+    .header-title span { font-size: 9px; color: #55556a; font-family: monospace; }
+    .open-btn {
+      padding: 4px 10px; background: #6c5ce720; color: #a78bfa;
+      border: 1px solid #6c5ce740; border-radius: 5px; font-size: 10px;
+      font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .open-btn:hover { background: #6c5ce740; border-color: #6c5ce7; }
+    .open-btn.hidden { display: none; }
+
+    .status-bar {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 14px; background: #1a1a2440;
+      border-bottom: 1px solid #2a2a3a20; font-size: 11px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot.on { background: #00b894; box-shadow: 0 0 5px #00b89480; animation: pulse 2s infinite; }
+    .dot.off { background: #e17055; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+    .status-text { flex: 1; }
+    .status-text.on { color: #00b894; }
+    .status-text.off { color: #8888a0; }
+    .port-badge { font-size: 9px; font-family: monospace; color: #55556a; }
+
+    .intercept-toggle { display: flex; align-items: center; gap: 5px; cursor: pointer; margin-left: auto; }
+    .intercept-label { font-size: 9px; color: #8888a0; user-select: none; }
+    .intercept-toggle input[type=checkbox] { display: none; }
+    .intercept-slider {
+      width: 26px; height: 14px; background: #2a2a3a; border-radius: 7px;
+      position: relative; transition: background 0.2s; flex-shrink: 0;
+    }
+    .intercept-slider::after {
+      content: ''; position: absolute; width: 10px; height: 10px;
+      background: #55556a; border-radius: 50%; top: 2px; left: 2px; transition: all 0.2s;
+    }
+    .intercept-toggle input:checked + .intercept-slider { background: #6c5ce740; border: 1px solid #6c5ce750; }
+    .intercept-toggle input:checked + .intercept-slider::after { background: #a78bfa; left: 13px; }
+
+    .section { padding: 10px 14px; }
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .section-label { font-size: 10px; color: #55556a; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; }
+    .count-badge {
+      font-size: 9px; padding: 2px 6px; border-radius: 9px;
+      background: #6c5ce720; color: #a78bfa; font-weight: 600; font-family: monospace;
+    }
+
+    .video-list { max-height: 250px; overflow-y: auto; padding-right: 2px; }
+    .video-list::-webkit-scrollbar { width: 3px; }
+    .video-list::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
+
+    .video-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 8px 10px; background: #1a1a24; border-radius: 7px;
+      margin-bottom: 5px; border: 1px solid transparent;
+      transition: all 0.12s; cursor: default;
+    }
     .video-item:hover { background: #22222e; border-color: #6c5ce730; }
-    .video-item .icon { font-size: 18px; margin-top: 2px; }
-    .video-item .info { flex: 1; min-width: 0; }
-    .video-item .name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
-    .video-item .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .video-item .badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; text-transform: uppercase; }
-    .video-item .badge.quality { background: #6c5ce720; color: #a78bfa; border: 1px solid #6c5ce740; }
-    .video-item .badge.size { background: #00b89420; color: #00b894; border: 1px solid #00b89440; }
-    .video-item .badge.type { background: #ff634720; color: #ff6347; border: 1px solid #ff634740; }
-    .video-item .source { font-size: 9px; color: #55556a; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .video-item .dl-btn { padding: 5px 10px; background: #6c5ce7; color: white; border: none; border-radius: 5px; font-size: 11px; cursor: pointer; font-weight: 600; white-space: nowrap; margin-top: 2px; }
-    .video-item .dl-btn:hover { background: #7d6ff0; }
-    .empty { text-align: center; padding: 24px; color: #55556a; font-size: 11px; line-height: 1.5; }
-    .actions { display: flex; gap: 6px; padding: 0 16px 12px; }
-    .btn { flex: 1; padding: 8px; border: 1px solid #2a2a3a; background: #1a1a24; color: #e2e2e8; border-radius: 6px; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.15s; }
-    .btn:hover { background: #22222e; border-color: #6c5ce7; }
-    .count { font-size: 10px; color: #8888a0; margin-left: auto; }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
+    .video-item:last-child { margin-bottom: 0; }
+
+    .vi-icon { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; }
+    .vi-info { flex: 1; min-width: 0; }
+    .vi-name { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+    .vi-meta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; text-transform: uppercase; flex-shrink: 0; }
+    .badge.yt { background: #ff000020; color: #ff4444; border: 1px solid #ff000030; }
+    .badge.video { background: #6c5ce720; color: #a78bfa; border: 1px solid #6c5ce730; }
+    .badge.audio { background: #fd79a820; color: #fd79a8; border: 1px solid #fd79a830; }
+    .badge.hls { background: #fdcb6e20; color: #fdcb6e; border: 1px solid #fdcb6e30; }
+    .badge.quality { background: #0984e320; color: #74b9ff; border: 1px solid #0984e330; }
+    .badge.size { background: #00b89420; color: #00b894; border: 1px solid #00b89430; }
+
+    .dl-btn {
+      padding: 5px 11px; background: #6c5ce7; color: white;
+      border: none; border-radius: 5px; font-size: 11px; font-weight: 700;
+      cursor: pointer; transition: all 0.12s; white-space: nowrap; flex-shrink: 0;
+    }
+    .dl-btn:hover { background: #7d6ff0; transform: scale(1.03); }
+    .dl-btn.done { background: #00b894; cursor: default; }
+    .dl-btn:active { transform: scale(0.97); }
+
+    .empty {
+      text-align: center; padding: 28px 20px; color: #55556a;
+      font-size: 11px; line-height: 1.6;
+    }
+    .empty-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.5; }
+    .empty p { color: #8888a0; }
+
+    .not-running {
+      text-align: center; padding: 20px;
+      font-size: 11px; line-height: 1.6; color: #8888a0;
+    }
+    .not-running .nr-icon { font-size: 24px; margin-bottom: 8px; }
+    .not-running a { color: #6c5ce7; text-decoration: none; font-weight: 600; }
+    .not-running a:hover { color: #a78bfa; }
+
+    .footer {
+      display: flex; gap: 6px; padding: 8px 14px 12px;
+      border-top: 1px solid #2a2a3a30;
+    }
+    .footer-btn {
+      flex: 1; padding: 7px; border: 1px solid #2a2a3a; background: #1a1a24;
+      color: #8888a0; border-radius: 6px; font-size: 10px; font-weight: 600;
+      cursor: pointer; text-align: center; transition: all 0.12s; text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .footer-btn:hover { background: #22222e; border-color: #6c5ce7; color: #e2e2e8; }
+    .footer-btn.primary { background: #6c5ce720; border-color: #6c5ce740; color: #a78bfa; }
+    .footer-btn.primary:hover { background: #6c5ce730; border-color: #6c5ce7; color: #e2e2e8; }
+
+    .url-input-section {
+      padding: 10px 14px 0; border-bottom: 1px solid #2a2a3a30;
+    }
+    .url-row { display: flex; gap: 5px; padding-bottom: 10px; }
+    .url-input {
+      flex: 1; background: #1a1a24; border: 1px solid #2a2a3a; color: #e2e2e8;
+      border-radius: 6px; padding: 5px 8px; font-size: 10px; outline: none;
+      font-family: monospace;
+    }
+    .url-input:focus { border-color: #6c5ce7; }
+    .url-input::placeholder { color: #55556a; }
+    .url-dl-btn {
+      padding: 5px 10px; background: #6c5ce7; color: white; border: none;
+      border-radius: 5px; font-size: 10px; font-weight: 700; cursor: pointer;
+      transition: all 0.12s; white-space: nowrap; flex-shrink: 0;
+    }
+    .url-dl-btn:hover { background: #7d6ff0; }
+    .url-dl-btn:disabled { opacity: 0.5; cursor: default; }
+    .url-status { font-size: 9px; padding-bottom: 8px; color: #55556a; min-height: 13px; }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="logo">⚡</div>
-    <h1>QDM</h1>
-    <span class="version">v1.0.1</span>
+    <div class="logo">&#x26A1;</div>
+    <div class="header-title">
+      <h1>QDM</h1>
+      <span>Quantum Download Manager</span>
+    </div>
+    <button class="open-btn hidden" id="openBtn" title="Open QDM app">Open App &#x2197;</button>
   </div>
-  <div class="status" id="status">
+
+  <div class="status-bar" id="statusBar">
     <div class="dot off" id="statusDot"></div>
-    <span id="statusText">Checking QDM...</span>
+    <span class="status-text off" id="statusText">Checking QDM...</span>
+    <span class="port-badge" id="portBadge"></span>
+    <label class="intercept-toggle" id="interceptRow" style="display:none" title="Auto-intercept browser downloads">
+      <span class="intercept-label">Auto-intercept</span>
+      <input type="checkbox" id="interceptCheck" />
+      <span class="intercept-slider"></span>
+    </label>
   </div>
-  <div class="section">
-    <div style="display:flex;align-items:center;margin-bottom:8px;">
-      <span class="section-title" style="margin-bottom:0">Detected Media</span>
-      <span class="count" id="mediaCount"></span>
+
+  <div class="url-input-section" id="urlInputSection" style="display:none">
+    <div class="url-row">
+      <input class="url-input" id="urlInput" type="url" placeholder="Paste URL to download (YouTube, direct links, &hellip;)" />
+      <button class="url-dl-btn" id="urlDlBtn">&#x26A1; Download</button>
     </div>
-    <div class="video-list" id="videoList">
-      <div class="empty">No media detected yet.<br>Browse pages with video or audio content.</div>
+    <div class="url-status" id="urlStatus"></div>
+  </div>
+
+  <div id="mainContent">
+    <div class="not-running">
+      <div class="nr-icon">&#x26A1;</div>
+      <p>QDM is not running.</p>
+      <p style="margin-top:6px">Download and start the<br><a href="https://github.com/PBhadoo/QDM/releases" target="_blank">QDM app</a> to use this extension.</p>
     </div>
   </div>
-  <div class="actions">
-    <button class="btn" id="clearBtn">Clear All</button>
+
+  <div class="footer" id="footer" style="display:none">
+    <button class="footer-btn primary" id="openQdmBtn">Open QDM &#x26A1;</button>
   </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

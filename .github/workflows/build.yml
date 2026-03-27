@@ -19,18 +19,24 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
       - run: npm ci
-      - run: npm run build
-      - run: node build/create-icon.js
-      - run: npx electron-builder --win --x64
+      - run: node scripts/fetch-yt-dlp.js
+      - run: npm run tauri:build:win
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
       - uses: actions/upload-artifact@v4
         with:
           name: QDM-Windows
           path: |
-            release/*.exe
-            release/*.blockmap
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
           retention-days: 30
 
   build-macos:
@@ -41,42 +47,63 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
       - run: npm ci
-      - run: npm run build
-      - run: node build/create-icon.js
-      # Skip code signing entirely
-      - run: npx electron-builder --mac --x64 --arm64
+      - run: node scripts/fetch-yt-dlp.js
+      - run: npm run tauri:build:mac
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          APPLE_SIGNING_IDENTITY: ""
       - uses: actions/upload-artifact@v4
         with:
           name: QDM-macOS
           path: |
-            release/*.dmg
-            release/*.zip
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
           retention-days: 30
 
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev
       - run: npm ci
-      - run: npm run build
-      - run: node build/create-icon.js
-      - run: npx electron-builder --linux --x64
+      - run: node scripts/fetch-yt-dlp.js
+      - run: npm run tauri:build:linux
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
       - uses: actions/upload-artifact@v4
         with:
           name: QDM-Linux
           path: |
-            release/*.AppImage
-            release/*.deb
+            src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
           retention-days: 30
 
   release:
@@ -87,13 +114,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - run: find artifacts -type f | head -50
-      - uses: softprops/action-gh-release@v1
+      - run: find artifacts -type f | sort
+      - uses: softprops/action-gh-release@v2
         with:
           files: |
+            artifacts/QDM-Windows/*.msi
             artifacts/QDM-Windows/*.exe
             artifacts/QDM-macOS/*.dmg
-            artifacts/QDM-macOS/*.zip
+            artifacts/QDM-macOS/*.tar.gz
             artifacts/QDM-Linux/*.AppImage
             artifacts/QDM-Linux/*.deb
           draft: false
@@ -101,24 +129,29 @@ jobs:
           generate_release_notes: true
           body: |
             ## Quantum Download Manager ${{ github.ref_name }}
-            
+
             ### Downloads
-            
+
             | Platform | File | Description |
             |----------|------|-------------|
-            | 🪟 Windows | `QDM-Setup-*.exe` | Installer (NSIS) |
-            | 🪟 Windows | `QDM-Portable-*.exe` | Portable (no install) |
-            | 🍎 macOS | `*.dmg` | Disk Image |
-            | 🐧 Linux | `*.AppImage` | Universal Linux |
-            | 🐧 Linux | `*.deb` | Debian/Ubuntu |
-            
+            | 🪟 Windows | `*_x64_en-US.msi` | Windows Installer (MSI) |
+            | 🪟 Windows | `*_x64-setup.exe` | Windows Installer (NSIS) |
+            | 🍎 macOS | `*.dmg` | macOS Disk Image (Apple Silicon) |
+            | 🐧 Linux | `*.AppImage` | Universal Linux (x64) |
+            | 🐧 Linux | `*.deb` | Debian/Ubuntu (x64) |
+
+            ### Browser Extension
+
+            Install the Chrome extension from the `extension/chrome/` directory via **chrome://extensions → Load unpacked**.
+
             ### macOS Note
-            The app is not code-signed. After installing, if macOS says it's damaged, run:
+
+            The app is not code-signed. If macOS says it is damaged, run:
             ```
             xattr -cr /Applications/Quantum\ Download\ Manager.app
             ```
-            
+
             ---
-            *Built with ⚡ by GitHub Actions*
+            *Built with ⚡ Tauri 2 by GitHub Actions*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

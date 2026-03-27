@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "QDM - Quantum Download Manager",
   "description": "Integrate your browser with QDM for accelerated downloads. Captures downloads and media streams automatically.",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "permissions": [
     "downloads",
     "webRequest",
@@ -38,7 +38,7 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "qdm@cloudflare-hackers",
+      "id": "qdm@parveenbhadoo",
       "strict_min_version": "109.0"
     }
   }

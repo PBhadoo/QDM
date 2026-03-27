@@ -1,7 +1,7 @@
 import React from 'react'
-import { 
-  Download, Archive, FileText, Music, Video, Monitor, 
-  MoreHorizontal, Settings, Info, Layers, Tv, Clipboard, ListOrdered
+import {
+  Download, Archive, FileText, Music, Video, Monitor,
+  MoreHorizontal, Settings, Info
 } from 'lucide-react'
 import { useDownloadStore } from '../store/useDownloadStore'
 import type { DownloadCategory } from '../types/download'
@@ -24,7 +24,7 @@ const categories: CategoryItem[] = [
 ]
 
 export function Sidebar() {
-  const { activeCategory, activeView, setActiveCategory, setActiveView, downloads, setShowSettings, setShowAbout } = useDownloadStore()
+  const { activeCategory, setActiveCategory, downloads, setShowSettings, setShowAbout } = useDownloadStore()
 
   const getCategoryCount = (category: DownloadCategory): number => {
     if (category === 'all') return downloads.length
@@ -48,26 +48,6 @@ export function Sidebar() {
             <div className="text-[10px] text-qdm-textSecondary uppercase tracking-wider">Done</div>
           </div>
         </div>
-      </div>
-
-      {/* Views */}
-      <div className="py-2 border-b border-qdm-border">
-        <div className="px-3 mb-1">
-          <span className="text-[10px] font-semibold text-qdm-textMuted uppercase tracking-widest">
-            Tools
-          </span>
-        </div>
-        <button
-          onClick={() => setActiveView('video-grabber')}
-          className={`w-full flex items-center gap-3 px-4 py-2 text-sm transition-all duration-150
-            ${activeView === 'video-grabber'
-              ? 'bg-red-500/10 text-qdm-text border-r-2 border-red-400'
-              : 'text-qdm-textSecondary hover:bg-qdm-surfaceHover hover:text-qdm-text'
-            }`}
-        >
-          <Tv size={16} className={activeView === 'video-grabber' ? 'text-red-400' : 'text-qdm-textMuted'} />
-          <span className="flex-1 text-left">Video Grabber</span>
-        </button>
       </div>
 
       {/* Categories */}

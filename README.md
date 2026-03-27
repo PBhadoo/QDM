@@ -5,55 +5,58 @@
 <h1 align="center">Quantum Download Manager</h1>
 
 <p align="center">
-  <strong>A modern, open-source download manager for Windows</strong><br>
-  <em>Multi-segment downloading • Pause/Resume • Beautiful UI • Free & Open Source</em>
+  <strong>A modern, open-source download manager for Windows, macOS, and Linux</strong><br>
+  <em>Multi-segment downloading • YouTube/media support • Browser integration • Beautiful UI</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/PBhadoo/QDM/releases">
+    <img src="https://img.shields.io/github/v/release/PBhadoo/QDM?style=flat-square&color=6c5ce7" alt="Latest Release" />
+  </a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square" alt="Platform" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
 </p>
 
 <p align="center">
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
+  <a href="#browser-extension">Extension</a> •
   <a href="#development">Development</a> •
-  <a href="#credits">Credits</a> •
-  <a href="#license">License</a>
+  <a href="#credits">Credits</a>
 </p>
 
 ---
 
 ## ✨ Features
 
-- **⚡ Multi-Segment Downloads** — Split files into multiple segments downloaded in parallel for maximum speed (inspired by XDM/IDM)
-- **⏸️ Pause & Resume** — Pause downloads and resume them later, even after closing the app
-- **📂 Smart Categorization** — Automatically categorizes downloads by file type (compressed, documents, music, videos, programs)
-- **🎨 Modern Dark UI** — Beautiful, clean interface designed for productivity
-- **🔄 Retry Failed Downloads** — Automatically retry failed segments without restarting the entire download
-- **📊 Real-Time Segment Visualization** — See each download segment's progress in real-time
-- **🔍 Search & Filter** — Quickly find downloads with search and category filters
-- **⚙️ Configurable** — Customize max segments, concurrent downloads, speed limits, and more
-- **💾 State Persistence** — Downloads survive app restarts with automatic state saving
-- **🖥️ Custom Title Bar** — Native-feeling frameless window with custom controls
+- **⚡ Multi-Segment Downloads** — Splits files into parallel segments for maximum speed
+- **🎬 YouTube & Media** — Download YouTube videos via yt-dlp with quality selection
+- **🌐 Browser Integration** — Chrome extension that automatically intercepts downloads and streams
+- **⏸️ Pause & Resume** — Full pause/resume support, even after restarting the app
+- **📂 Smart Categories** — Auto-sorts downloads by type (video, audio, documents, programs, archives)
+- **🎨 Modern Dark UI** — Clean, frameless interface with real-time segment visualization
+- **🔄 Auto-Retry** — Failed segments retry automatically; stalled segments recover gracefully
+- **🛡️ Auth Support** — Handles 401 prompts with credential dialog
+- **🔗 Expired Link Detection** — Detects signed/expiring URLs and alerts you
+- **⚙️ Configurable** — Max segments, concurrent downloads, speed limit, custom yt-dlp path
+- **🖥️ System Tray** — Runs in the tray, shows download notifications
 
 ## 🏗️ Architecture
 
-QDM is built with a modern tech stack:
+QDM is built with **Tauri 2** (Rust backend + React frontend):
 
-- **Electron** — Cross-platform desktop framework
-- **React 18** — UI library with hooks
-- **TypeScript** — Type safety throughout
-- **Vite** — Lightning-fast build tool
-- **Tailwind CSS** — Utility-first styling
-- **Zustand** — Lightweight state management
-- **Lucide React** — Beautiful icons
+| Layer | Technology |
+|-------|-----------|
+| Desktop framework | Tauri 2 (Rust) |
+| UI | React 18 + TypeScript + Vite |
+| Styling | Tailwind CSS |
+| State | Zustand |
+| HTTP server | Axum (for browser extension) |
+| Download engine | Custom Rust multi-segment engine |
+| Media | yt-dlp + ffmpeg (auto-installed) |
+| HLS/DASH | Custom Rust HLS/DASH engine |
 
 ### Download Engine
-
-The download engine implements **multi-segment/multi-connection downloading**, inspired by [XDM's architecture](https://github.com/subhra74/xdm):
-
-1. **URL Probing** — HEAD request to determine file size, resumability, and filename
-2. **Segment Splitting** — File divided into N segments based on configuration
-3. **Parallel Download** — Each segment downloaded via separate HTTP connection with Range headers
-4. **Progress Tracking** — Real-time speed calculation with moving averages
-5. **File Assembly** — Segments assembled into final file in correct order
-6. **State Persistence** — Segment states saved to disk for crash recovery
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -66,167 +69,162 @@ The download engine implements **multi-segment/multi-connection downloading**, i
 └───────────┴───────────┴──────────┴───────────┘
 ```
 
+1. **Probe** — HEAD request to get file size, resumability, filename
+2. **Split** — File divided into N segments based on configuration
+3. **Parallel** — Each segment via separate HTTP connection with Range headers
+4. **Progress** — Real-time speed with exponential moving average
+5. **Assemble** — Segments merged into final file in order
+6. **Persist** — Segment state saved for crash recovery
+
 ## 📦 Installation
 
 ### Pre-built Releases
 
-Download the latest release from the [Releases page](https://github.com/CloudflareHackers/QDM/releases):
+Download from the [Releases page](https://github.com/PBhadoo/QDM/releases):
 
-| File | Description |
-|------|-------------|
-| `QDM-Setup-x.x.x-x64.exe` | Windows Installer (NSIS) — installs to Program Files |
-| `QDM-Portable-x.x.x.exe` | Portable version — no installation needed, run anywhere |
+| Platform | File | Description |
+|----------|------|-------------|
+| 🪟 Windows | `*_x64_en-US.msi` | MSI installer |
+| 🪟 Windows | `*_x64-setup.exe` | NSIS installer |
+| 🍎 macOS | `*.dmg` | Disk image (Apple Silicon) |
+| 🐧 Linux | `*.AppImage` | Universal (x64) |
+| 🐧 Linux | `*.deb` | Debian/Ubuntu (x64) |
 
-### Build from Source
+> **macOS:** If the app is blocked, run `xattr -cr /Applications/Quantum\ Download\ Manager.app`
 
-```bash
-# Clone the repository
-git clone https://github.com/CloudflareHackers/QDM.git
-cd QDM
+### yt-dlp & ffmpeg
 
-# Install dependencies
-npm install
+QDM auto-installs yt-dlp and ffmpeg on first launch if they are not found. You can also install manually via **Settings → Tools**.
 
-# Run in development mode
-npm run dev
+## 🌐 Browser Extension
 
-# Build for production
-npm run electron:build
-```
+The Chrome extension integrates QDM with your browser — automatically intercepting downloads and media streams just like IDM.
+
+### Install
+
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked** and select the `extension/chrome/` folder
+
+### Features
+
+- **Auto-intercept** — `.exe`, `.zip`, `.pdf`, `.mp4`, `.mkv` etc. go directly to QDM
+- **Toggle** — Enable/disable auto-intercept from the popup
+- **YouTube** — Click the QDM banner on YouTube to download with quality selection
+- **Context menu** — Right-click any link → *Download with QDM ⚡*
+- **Manual URL** — Paste any URL in the popup to queue it
+- **Notifications** — Desktop notification when a download completes
 
 ## 🛠️ Development
 
-```bash
-# Start development server (UI only, hot-reload)
-npm run dev
+### Prerequisites
 
-# Start with Electron (full app)
-npm run electron:dev
+- [Node.js](https://nodejs.org/) 18+
+- [Rust](https://rustup.rs/) (stable)
+- [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your platform
+
+### Setup
+
+```bash
+git clone https://github.com/PBhadoo/QDM.git
+cd QDM
+npm install
+```
+
+### Run
+
+```bash
+# Dev mode (hot-reload UI + Tauri backend)
+npm run tauri:dev
 
 # Build production app
-npm run electron:build
+npm run tauri:build
 ```
 
-## 📦 Packaging for Windows (.exe)
-
-### Method 1: Local Build (on Windows)
-
-```bash
-# Build NSIS installer (.exe setup)
-npm run electron:build:win
-
-# Build portable version (single .exe, no install)
-npm run electron:build:win:portable
-
-# Output will be in the release/ folder:
-#   release/QDM-Setup-1.0.0-x64.exe     (installer)
-#   release/QDM-Portable-1.0.0.exe      (portable)
-```
-
-### Method 2: GitHub Actions (Automated)
-
-The project includes a GitHub Actions workflow that automatically builds Windows executables:
-
-1. **On every push to `main`**: Builds are uploaded as GitHub Actions artifacts
-2. **On tag push (e.g., `v1.0.0`)**: Automatically creates a GitHub Release with downloadable .exe files
-
-To create a release:
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-# GitHub Actions will build and create a release with .exe files
-```
-
-### Method 3: Cross-compile from macOS/Linux
-
-You can build Windows .exe from macOS or Linux using Wine:
-```bash
-# Install Wine (macOS)
-brew install --cask wine-stable
-
-# Then build normally
-npm run electron:build:win
-```
-
-### Custom Icon
-
-To set a custom app icon:
-1. Create a 512×512 PNG image and save as `build/icon.png`
-2. Generate platform icons:
-   ```bash
-   npx electron-icon-builder --input=build/icon.png --output=build
-   ```
-3. This creates `build/icon.ico` (Windows) and `build/icon.icns` (macOS)
-
-### Available Build Scripts
+### Build Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start dev server (UI only, hot-reload) |
-| `npm run electron:dev` | Start full Electron app in dev mode |
-| `npm run electron:build` | Build for current platform |
-| `npm run electron:build:win` | Build Windows NSIS installer + portable |
-| `npm run electron:build:win:portable` | Build Windows portable only |
-| `npm run electron:build:linux` | Build Linux AppImage + .deb |
-| `npm run electron:build:mac` | Build macOS .dmg |
+| `npm run dev` | Vite dev server (UI only) |
+| `npm run tauri:dev` | Full Tauri dev mode with hot-reload |
+| `npm run tauri:build` | Production build (current platform) |
+| `npm run tauri:build:win` | Windows MSI + NSIS installer |
+| `npm run tauri:build:linux` | Linux AppImage + .deb |
+| `npm run tauri:build:mac` | macOS .dmg (Apple Silicon) |
+| `npm run fetch-yt-dlp` | Download yt-dlp binary for bundling |
 
 ### Project Structure
 
 ```
 QDM/
-├── electron/                 # Electron main process
-│   ├── main.ts              # App entry, window management, IPC
-│   ├── preload.ts           # Context bridge (main ↔ renderer)
-│   ├── download-engine.ts   # Multi-segment download engine
-│   └── types.ts             # Shared TypeScript types
-├── src/                     # React renderer
-│   ├── main.tsx             # React entry
-│   ├── App.tsx              # Root component
-│   ├── index.css            # Tailwind + custom styles
+├── src/                     # React frontend
+│   ├── App.tsx              # Root component + event listeners
 │   ├── components/          # UI components
-│   │   ├── TitleBar.tsx     # Custom window title bar
-│   │   ├── Sidebar.tsx      # Category navigation
-│   │   ├── Toolbar.tsx      # Action toolbar
-│   │   ├── DownloadList.tsx # Download list with segments
+│   │   ├── TitleBar.tsx
+│   │   ├── Sidebar.tsx
+│   │   ├── Toolbar.tsx
+│   │   ├── DownloadList.tsx
+│   │   ├── VideoQualityDialog.tsx
 │   │   ├── NewDownloadDialog.tsx
 │   │   ├── SettingsDialog.tsx
 │   │   └── AboutDialog.tsx
-│   ├── store/               # Zustand state management
-│   ├── types/               # TypeScript types
-│   └── utils/               # Formatting utilities
-├── index.html               # HTML entry
-├── vite.config.ts           # Vite + Electron config
-├── tailwind.config.js       # Tailwind theme
-└── package.json
+│   └── store/
+│       └── useDownloadStore.ts
+├── src-tauri/               # Rust/Tauri backend
+│   ├── src/
+│   │   ├── lib.rs           # Tauri commands + HTTP server (Axum)
+│   │   ├── download_engine.rs  # Multi-segment download engine
+│   │   ├── yt_dlp.rs        # yt-dlp integration
+│   │   ├── hls_engine.rs    # HLS/DASH streaming engine
+│   │   ├── browser_monitor.rs  # Browser extension HTTP API
+│   │   ├── tools.rs         # yt-dlp/ffmpeg auto-install
+│   │   └── types.rs         # Shared types
+│   ├── tauri.conf.json
+│   └── Cargo.toml
+├── extension/
+│   └── chrome/              # Chrome MV3 extension
+│       ├── background.js    # Service worker (download interception)
+│       ├── content.js       # Content script (hover banner)
+│       ├── inject.js        # Page-world media detector
+│       ├── popup.html       # Extension popup UI
+│       ├── popup.js         # Popup logic
+│       └── manifest.json
+└── scripts/
+    └── fetch-yt-dlp.js      # Downloads yt-dlp binary for bundling
 ```
 
-## 🙏 Credits & Acknowledgments
+### Release
+
+To create a release, push a version tag:
+
+```bash
+git tag v1.0.3
+git push origin v1.0.3
+```
+
+GitHub Actions will build for all platforms and create a release automatically.
+
+## 🙏 Credits
 
 ### XDM (Xtreme Download Manager)
 **By [subhra74](https://github.com/subhra74)** — [github.com/subhra74/xdm](https://github.com/subhra74/xdm)
 
-QDM's download engine architecture is directly inspired by XDM's brilliant multi-segment download approach. XDM pioneered the open-source download manager space with features like:
-- Multi-segment file downloading with dynamic piece splitting
-- HTTP Range header-based resume support
-- Segment state persistence and crash recovery
-- Speed calculation with moving averages
-
-QDM is a spiritual successor to XDM, which is no longer actively maintained. We carry forward its legacy with a modern tech stack and fresh UI design. **Thank you, subhra74, for your incredible work.**
+QDM's multi-segment download architecture is inspired by XDM. XDM pioneered open-source download acceleration with segment splitting, Range-header resumption, and crash recovery — patterns QDM builds on with a modern Rust + Tauri stack.
 
 ### IDM (Internet Download Manager)
 **By [Tonec Inc.](https://www.internetdownloadmanager.com/)**
 
-IDM has been the gold standard in download acceleration for decades. Their pioneering work in segmented download technology established the patterns that the entire download manager category follows today. We acknowledge and honor their hard work and innovation.
+IDM established the gold standard for download acceleration and browser integration. QDM's browser extension design follows the patterns IDM pioneered.
 
-### Open Source Community
+### Open Source
 
-QDM is built on the shoulders of giants:
-- [Electron](https://www.electronjs.org/) by GitHub
-- [React](https://react.dev/) by Meta
-- [Vite](https://vitejs.dev/) by Evan You
-- [Tailwind CSS](https://tailwindcss.com/) by Tailwind Labs
-- [Zustand](https://github.com/pmndrs/zustand) by Poimandres
-- [Lucide Icons](https://lucide.dev/)
+- [Tauri](https://tauri.app/) — Rust desktop framework
+- [React](https://react.dev/) — UI library
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — Video downloader
+- [Axum](https://github.com/tokio-rs/axum) — Async web framework
+- [Tailwind CSS](https://tailwindcss.com/) — Styling
+- [Zustand](https://github.com/pmndrs/zustand) — State management
+- [Lucide Icons](https://lucide.dev/) — Icons
 
 ## 📄 License
 
@@ -235,5 +233,5 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 <p align="center">
-  Made with ❤️ by <a href="https://github.com/CloudflareHackers">CloudflareHackers</a>
+  Made with ❤️ by <a href="https://github.com/PBhadoo">Parveen Bhadoo</a>
 </p>

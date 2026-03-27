@@ -1,26 +1,24 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
 import { X, Zap, Github, Heart, ExternalLink } from 'lucide-react'
 import { useDownloadStore } from '../store/useDownloadStore'
 
-const isElectron = typeof window !== 'undefined' && window.qdmAPI !== undefined
-
 export function AboutDialog() {
   const { setShowAbout } = useDownloadStore()
+  const [version, setVersion] = useState('...')
+  useEffect(() => { getVersion().then(setVersion).catch(() => setVersion('1.2.0')) }, [])
 
   const openLink = (url: string) => {
-    if (isElectron) {
-      window.qdmAPI.shell.openExternal(url)
-    } else {
-      window.open(url, '_blank')
-    }
+    invoke('shell_open_external', { url })
   }
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in"
       onClick={() => setShowAbout(false)}
     >
-      <div 
+      <div
         className="bg-qdm-surface border border-qdm-border rounded-xl w-[460px] shadow-2xl animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
@@ -49,10 +47,11 @@ export function AboutDialog() {
           <h1 className="text-xl font-bold text-qdm-text mb-1">
             Quantum Download Manager
           </h1>
-          <p className="text-xs font-mono text-qdm-textMuted mb-4">Version 1.0.0</p>
+          <p className="text-xs font-mono text-qdm-textMuted mb-4">v{version}</p>
 
+          <p className="text-xs text-qdm-textMuted mb-1">Made by <span className="text-qdm-accent font-semibold">Parveen Bhadoo</span></p>
           <p className="text-sm text-qdm-textSecondary leading-relaxed mb-6 max-w-sm mx-auto">
-            A modern, open-source download manager for Windows with multi-segment 
+            A modern, open-source download manager for Windows with multi-segment
             downloading, pause/resume support, and a beautiful dark interface.
           </p>
 
@@ -69,7 +68,7 @@ export function AboutDialog() {
                   <span className="text-sm">🌟</span>
                 </div>
                 <div>
-                  <button 
+                  <button
                     onClick={() => openLink('https://github.com/subhra74/xdm')}
                     className="text-sm font-medium text-qdm-text hover:text-qdm-accent transition-colors flex items-center gap-1"
                   >
@@ -77,8 +76,8 @@ export function AboutDialog() {
                     <ExternalLink size={10} />
                   </button>
                   <p className="text-[11px] text-qdm-textMuted leading-relaxed">
-                    By <span className="text-qdm-textSecondary">subhra74</span> — Our download engine architecture 
-                    is inspired by XDM's brilliant multi-segment approach. QDM is a spiritual 
+                    By <span className="text-qdm-textSecondary">subhra74</span> — Our download engine architecture
+                    is inspired by XDM's brilliant multi-segment approach. QDM is a spiritual
                     successor to this amazing open-source project.
                   </p>
                 </div>
@@ -93,8 +92,8 @@ export function AboutDialog() {
                     IDM (Internet Download Manager)
                   </div>
                   <p className="text-[11px] text-qdm-textMuted leading-relaxed">
-                    By <span className="text-qdm-textSecondary">Tonec Inc.</span> — Pioneers of segmented download 
-                    technology. Their innovation in download acceleration has been the 
+                    By <span className="text-qdm-textSecondary">Tonec Inc.</span> — Pioneers of segmented download
+                    technology. Their innovation in download acceleration has been the
                     gold standard for decades. We honor their hard work.
                   </p>
                 </div>
@@ -104,15 +103,15 @@ export function AboutDialog() {
 
           {/* Links */}
           <div className="flex items-center justify-center gap-3">
-            <button 
-              onClick={() => openLink('https://github.com/CloudflareHackers/QDM')}
+            <button
+              onClick={() => openLink('https://github.com/PBhadoo/QDM')}
               className="btn-secondary flex items-center gap-2"
             >
               <Github size={14} />
               GitHub
             </button>
-            <button 
-              onClick={() => openLink('https://github.com/CloudflareHackers/QDM/issues')}
+            <button
+              onClick={() => openLink('https://github.com/PBhadoo/QDM/issues')}
               className="btn-ghost"
             >
               Report Issue
@@ -121,7 +120,7 @@ export function AboutDialog() {
 
           {/* License */}
           <p className="text-[10px] text-qdm-textMuted mt-4">
-            Open Source — MIT License — Made with <Heart size={8} className="inline text-red-400" /> by CloudflareHackers
+            &copy; 2026 Parveen Bhadoo — Open Source — MIT License — Made with <Heart size={8} className="inline text-red-400" />
           </p>
         </div>
       </div>

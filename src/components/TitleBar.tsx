@@ -1,11 +1,14 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
 import { Minus, Square, X, Zap } from 'lucide-react'
 
-const isElectron = typeof window !== 'undefined' && window.qdmAPI !== undefined
-const isMac = navigator.platform?.toLowerCase().includes('mac') || 
+const isMac = navigator.platform?.toLowerCase().includes('mac') ||
               navigator.userAgent?.toLowerCase().includes('mac')
 
 export function TitleBar() {
+  const [version, setVersion] = useState('')
+  useEffect(() => { getVersion().then(setVersion).catch(() => {}) }, [])
   return (
     <div className="titlebar-drag h-10 bg-qdm-surface/80 border-b border-qdm-border flex items-center shrink-0 relative">
       {/* macOS: leave space for native traffic lights on the left */}
@@ -20,7 +23,7 @@ export function TitleBar() {
           <span className="text-xs font-semibold text-qdm-textSecondary tracking-wide uppercase">
             QDM
           </span>
-          <span className="text-[10px] text-qdm-textMuted font-mono">v1.0.1</span>
+          {version && <span className="text-[10px] text-qdm-textMuted font-mono">v{version}</span>}
         </div>
       )}
 
@@ -43,21 +46,21 @@ export function TitleBar() {
       {!isMac && (
         <div className="titlebar-no-drag flex items-center gap-0.5 px-2">
           <button
-            onClick={() => isElectron && window.qdmAPI.window.minimize()}
+            onClick={() => invoke('window_minimize')}
             className="w-8 h-7 flex items-center justify-center rounded hover:bg-white/10 transition-colors"
             title="Minimize"
           >
             <Minus size={14} className="text-qdm-textSecondary" />
           </button>
           <button
-            onClick={() => isElectron && window.qdmAPI.window.maximize()}
+            onClick={() => invoke('window_maximize')}
             className="w-8 h-7 flex items-center justify-center rounded hover:bg-white/10 transition-colors"
             title="Maximize"
           >
             <Square size={11} className="text-qdm-textSecondary" />
           </button>
           <button
-            onClick={() => isElectron && window.qdmAPI.window.close()}
+            onClick={() => invoke('window_close')}
             className="w-8 h-7 flex items-center justify-center rounded hover:bg-red-500/80 hover:text-white transition-colors"
             title="Close"
           >

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  Video, Download, Trash2, RefreshCw, Globe, 
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import {
+  Video, Download, Trash2, RefreshCw, Globe,
   Wifi, WifiOff, Play, Music, Radio, Tv
 } from 'lucide-react'
-
-const isElectron = typeof window !== 'undefined' && window.qdmAPI !== undefined
 
 interface MediaItem {
   id: string
@@ -15,13 +15,6 @@ interface MediaItem {
   size: number
   dateAdded: string
 }
-
-// Mock media for web dev mode
-const mockMedia: MediaItem[] = [
-  { id: '1', name: 'Rick Astley - Never Gonna Give You Up.mp4', description: 'YouTube • 45.2 MB', tabUrl: 'https://youtube.com/watch?v=xxx', type: 'youtube', size: 47417344, dateAdded: new Date().toISOString() },
-  { id: '2', name: 'podcast_ep127_final.mp3', description: 'Audio • 12.8 MB', tabUrl: 'https://example.com/podcast', type: 'audio', size: 13421773, dateAdded: new Date(Date.now() - 300000).toISOString() },
-  { id: '3', name: 'live_stream_segment.ts', description: 'HLS Stream', tabUrl: 'https://twitch.tv/channel', type: 'hls', size: 0, dateAdded: new Date(Date.now() - 600000).toISOString() },
-]
 
 function getTypeIcon(type: string) {
   switch (type) {
@@ -45,17 +38,16 @@ function getTypeBadge(type: string) {
 }
 
 export function VideoGrabber() {
-  const [mediaList, setMediaList] = useState<MediaItem[]>(isElectron ? [] : mockMedia)
-  const [browserStatus, setBrowserStatus] = useState({ running: !isElectron, port: 8597, mediaCount: 0 })
+  const [mediaList, setMediaList] = useState<MediaItem[]>([])
+  const [browserStatus, setBrowserStatus] = useState({ running: false, port: 8597, mediaCount: 0 })
   const [isLoading, setIsLoading] = useState(false)
 
   const loadMedia = async () => {
-    if (!isElectron) return
     setIsLoading(true)
     try {
       const [list, status] = await Promise.all([
-        window.qdmAPI.browser.getMediaList(),
-        window.qdmAPI.browser.getStatus(),
+        invoke<MediaItem[]>('browser_get_media_list'),
+        invoke<{ running: boolean; port: number; mediaCount: number }>('browser_get_status'),
       ])
       setMediaList(list)
       setBrowserStatus(status)
@@ -67,25 +59,22 @@ export function VideoGrabber() {
 
   useEffect(() => {
     loadMedia()
-    if (isElectron) {
-      const unsub = window.qdmAPI.on('media:added', () => loadMedia())
-      const interval = setInterval(loadMedia, 5000)
-      return () => { unsub(); clearInterval(interval) }
+    const unlistenPromise = listen('media:added', () => loadMedia())
+    const interval = setInterval(loadMedia, 5000)
+    return () => {
+      unlistenPromise.then(unlisten => unlisten())
+      clearInterval(interval)
     }
   }, [])
 
   const handleDownload = async (mediaId: string) => {
-    if (isElectron) {
-      await window.qdmAPI.browser.downloadMedia(mediaId)
-    }
+    await invoke('browser_download_media', { mediaId })
     // Remove from list visually
     setMediaList(prev => prev.filter(m => m.id !== mediaId))
   }
 
   const handleClear = async () => {
-    if (isElectron) {
-      await window.qdmAPI.browser.clearMedia()
-    }
+    await invoke('browser_clear_media')
     setMediaList([])
   }
 
@@ -96,8 +85,8 @@ export function VideoGrabber() {
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold text-qdm-text">Video & Media Grabber</h2>
           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border
-            ${browserStatus.running 
-              ? 'bg-qdm-success/15 text-qdm-success border-qdm-success/30' 
+            ${browserStatus.running
+              ? 'bg-qdm-success/15 text-qdm-success border-qdm-success/30'
               : 'bg-qdm-danger/15 text-qdm-danger border-qdm-danger/30'}`}>
             {browserStatus.running ? <Wifi size={10} /> : <WifiOff size={10} />}
             {browserStatus.running ? `Listening on :${browserStatus.port}` : 'Not connected'}
@@ -123,7 +112,7 @@ export function VideoGrabber() {
           <Globe size={14} className="text-qdm-accent mt-0.5 shrink-0" />
           <div>
             <p className="text-xs text-qdm-textSecondary">
-              Install the <span className="text-qdm-accent font-medium">QDM Browser Extension</span> to automatically detect 
+              Install the <span className="text-qdm-accent font-medium">QDM Browser Extension</span> to automatically detect
               videos, audio, and streams from any website including YouTube, Twitch, and more.
             </p>
             <p className="text-[10px] text-qdm-textMuted mt-1">
@@ -141,7 +130,7 @@ export function VideoGrabber() {
           </div>
           <h3 className="text-sm font-semibold text-qdm-text mb-1">No media detected</h3>
           <p className="text-xs text-qdm-textMuted max-w-sm">
-            Browse web pages with video or audio content. QDM will automatically 
+            Browse web pages with video or audio content. QDM will automatically
             detect and list downloadable media here.
           </p>
         </div>
@@ -150,7 +139,7 @@ export function VideoGrabber() {
           {mediaList.map((media) => (
             <div
               key={media.id}
-              className="group bg-qdm-surface/50 hover:bg-qdm-surfaceHover border border-qdm-border/50 
+              className="group bg-qdm-surface/50 hover:bg-qdm-surfaceHover border border-qdm-border/50
                          rounded-lg p-3 transition-all duration-150"
             >
               <div className="flex items-center gap-3">
@@ -183,8 +172,8 @@ export function VideoGrabber() {
                 {/* Download button */}
                 <button
                   onClick={() => handleDownload(media.id)}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-qdm-accent/10 hover:bg-qdm-accent/20 
-                             text-qdm-accent border border-qdm-accent/30 rounded-lg text-xs font-medium 
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-qdm-accent/10 hover:bg-qdm-accent/20
+                             text-qdm-accent border border-qdm-accent/30 rounded-lg text-xs font-medium
                              transition-all duration-150 opacity-0 group-hover:opacity-100"
                 >
                   <Download size={12} />

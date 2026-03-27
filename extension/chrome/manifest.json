@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "QDM - Quantum Download Manager",
   "description": "Integrate your browser with QDM for accelerated downloads. Captures downloads and media streams automatically.",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "permissions": [
     "downloads",
     "webRequest",
@@ -11,10 +11,18 @@
     "tabs",
     "storage",
     "notifications",
-    "alarms"
+    "alarms",
+    "webNavigation",
+    "scripting"
   ],
   "host_permissions": [
     "*://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js"],
+      "matches": ["*://*/*"]
+    }
   ],
   "background": {
     "service_worker": "background.js"
@@ -36,7 +44,8 @@
     {
       "matches": ["*://*/*"],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_start",
+      "all_frames": true
     }
   ]
 }
