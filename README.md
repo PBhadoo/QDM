@@ -19,15 +19,17 @@
 </p>
 
 <p align="center">
-  <a href="#-features">Features</a> •
-  <a href="#-installation">Installation</a> •
-  <a href="#-browser-extension">Extension</a> •
-  <a href="#-configuration">Configuration</a> •
-  <a href="#-development">Development</a> •
-  <a href="#-credits">Credits</a>
+  <a href="#features">Features</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#browser-extension">Extension</a> •
+  <a href="#configuration">Configuration</a> •
+  <a href="#development">Development</a> •
+  <a href="#credits">Credits</a>
 </p>
 
 ---
+
+<a id="features"></a>
 
 ## ✨ Features
 
@@ -129,6 +131,8 @@ The extension authenticates every request with a session token (`X-QDM-Token`) o
 
 ---
 
+<a id="installation"></a>
+
 ## 📦 Installation
 
 ### Pre-built Releases
@@ -159,6 +163,8 @@ Download the latest version from the [Releases page](https://github.com/PBhadoo/
 QDM **auto-installs** yt-dlp and ffmpeg on first launch if they are not found. A progress banner is shown while they download. You can also manage them manually via **Settings → Tools**.
 
 ---
+
+<a id="browser-extension"></a>
 
 ## 🌐 Browser Extension
 
@@ -203,6 +209,8 @@ When QDM is running, the extension connects to it over WebSocket on port 8597. A
 | `tabs`, `scripting` | Inject YouTube banner and media detector |
 
 ---
+
+<a id="configuration"></a>
 
 ## ⚙️ Configuration
 
@@ -283,6 +291,8 @@ QDM checks for updates automatically on startup. If a new version is available:
 You can also check manually: **About → Check for Updates**.
 
 ---
+
+<a id="development"></a>
 
 ## 🛠️ Development
 
@@ -463,6 +473,8 @@ git push origin v1.0.4
 GitHub Actions will build all three platforms and publish the release automatically.
 
 ---
+
+<a id="credits"></a>
 
 ## 🙏 Credits
 
