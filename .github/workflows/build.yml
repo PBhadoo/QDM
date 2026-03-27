@@ -17,8 +17,8 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -34,7 +34,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ""
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: QDM-Windows
           path: |
@@ -45,8 +45,8 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -62,7 +62,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ""
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: QDM-macOS
           path: |
@@ -73,8 +73,8 @@ jobs:
   build-linux:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -99,7 +99,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ""
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: QDM-Linux
           path: |
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
       - run: find artifacts -type f | sort
