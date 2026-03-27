@@ -115,16 +115,17 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           path: artifacts
+          merge-multiple: true
       - run: find artifacts -type f | sort
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/QDM-Windows/*.msi
-            artifacts/QDM-Windows/*.exe
-            artifacts/QDM-macOS/*.dmg
-            artifacts/QDM-macOS/*.tar.gz
-            artifacts/QDM-Linux/*.AppImage
-            artifacts/QDM-Linux/*.deb
+            artifacts/**/*.msi
+            artifacts/**/*.exe
+            artifacts/**/*.dmg
+            artifacts/**/*.tar.gz
+            artifacts/**/*.AppImage
+            artifacts/**/*.deb
           draft: false
           prerelease: false
           generate_release_notes: true
