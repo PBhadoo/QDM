@@ -100,7 +100,7 @@ export function AboutDialog() {
 
           <p className="text-xs text-qdm-textMuted mb-1">Made by <span className="text-qdm-accent font-semibold">Parveen Bhadoo</span></p>
           <p className="text-sm text-qdm-textSecondary leading-relaxed mb-6 max-w-sm mx-auto">
-            A modern, open-source download manager for Windows with multi-segment
+            A modern, open-source download manager for Windows, macOS, and Linux with multi-segment
             downloading, pause/resume support, and a beautiful dark interface.
           </p>
 
